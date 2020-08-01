@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Will a Criminal Reoffend?</title>
+  <style>
+  body{
+    font-family: sans-serif;
+  }
+  .button {
+    background-color: LightPink;
+    border: none;
+    color: Black;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 24px;
+    margin: 4px 2px;
+    cursor: pointer;
+  }
+  .animal-card {
+    border: 1px solid #ccc;
+    padding: 10px;
+    box-shadow: 10px 10px 0px #eee;
+    width: 300px;
+    margin: auto;
+  }
+  </style>
+
+</head>
+
+<body align="center">
+
+  <h2>Enter in age and amount of priors and this model predicts whether the defendant will commit another crime or not.</h2>
+
+  <form action="/predict_recid/" method="post">
+
+    <div class="animal-card" align="center">
+
+     Priors (number):
+      <br>
+        <input type="text" name="priors_count">
+      <br>
+      
+     Age (years):
+      <br>
+        <input type="text" name="age">
+      <br>
+
+    </div>
+
+  <br>
+
+  <button type="submit" class="button">
+    Submit
+  </button>
+  </form>
+
+  <br>
+
+  {% if message %}
+  <h2>{{message}}</h2>
+  {% endif %}
+
+</body>
+</html>
