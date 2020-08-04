@@ -24,8 +24,9 @@ from sklearn.model_selection import KFold
 from xgboost import XGBClassifier
 
 #connect to SQL database
-cnx = create_engine('postgresql://ubuntu@18.191.18.59:5432/baseball')
-compas_df = pd.read_sql_query('''SELECT * FROM compastwoyear''', cnx)
+# cnx = create_engine('postgresql://ubuntu@18.191.18.59:5432/baseball')
+# compas_df = pd.read_sql_query('''SELECT * FROM compastwoyear''', cnx)
+compas_df = pd.read_pickle("pickle.p")
 
 # check totals
 #implies .545 accuracy just guessing 0, relatively balanced
@@ -43,6 +44,7 @@ average_by_race = compas_df.groupby('race').mean()
 compas_df["juv_m_gt1"] = compas_df["juv_misd_count"].apply(lambda x: 0 if x == 0 else 1)
 compas_df["juv_f_gt1"] = compas_df["juv_fel_count"].apply(lambda x: 0 if x == 0 else 1)
 compas_df["felony"] = compas_df["c_charge_degree"].apply(lambda x: 0 if x == "M" else 1)
+X["female"] = X["sex"].apply(lambda x: 0 if x == "Male" else 1)
 
 # create boolean to test results by race
 compas_df.race.value_counts()
@@ -55,7 +57,6 @@ X, X_test, y, y_test = \
 (train_test_split(compas_df.drop("two_year_recid", axis = 1)
                  ,compas_df.two_year_recid
                  ,test_size=0.2, random_state=34))
-
 
 # test COMPAS decile scores predictive accuracy
 # values are scored 1-10, and I am interpreting as a % likelihood of recividism
@@ -92,11 +93,13 @@ test = X_arr[:,:-1]
 base = DummyClassifier()
 cross_val_scores(base, X, y, name = 'base')
 
-#### FOR FLASK FLASK
-import pickle
-pickle.dump(model, open("my_pickled_model2.p", "wb"))
 
 
+# model 1
+model1 = LogisticRegression()
+cross_val_race_info(model1, X[["priors_count","age","female","race_black"]] , y)
+cross_val_scores_std(model1, X[["priors_count","age","sex","race_black"]] , y)
+cross_val_race(model1, X[["priors_count","age","felony","race"]] , y)
 
 predictions = model1.predict(X_fair[["priors_count","age","female"]])
 predictions_proba = model1.predict_proba(X_fair[["priors_count","age","female"]])
@@ -105,33 +108,215 @@ X["predict_proba"] = predictions_proba[:,1]
 X["actual"] = y
 X.to_csv("explore_predict4.csv")
 X_fair.to_csv("explore_predict5.csv")
-# model1.coef_
 
-# model 1
-model1 = LogisticRegression()
-cross_val_scores(model1, X[["priors_count","age","female","race_black"]] , y)
-cross_val_race(model1, X[["priors_count","age","felony","race"]] , y)
-model1.coef_
+# from sklego.metrics import p_percent_score
+# model1 = LogisticRegression(solver='lbfgs').fit(X[["priors_count","age","female","race_black"]], y)
+# print('p_percent_score:', p_percent_score(sensitive_column="race_black")(model1, X[["priors_count","age","female","race_black"]],y))
 
-len(black_df)
+# model_comp = LogisticRegression(solver='lbfgs').fit(X[["decile_score","race_black"]], y)
+# print('p_percent_score:', p_percent_score(sensitive_column="race_black")(model_comp, X[["decile_score","race_black"]],y))
 
-from sklego.metrics import p_percent_score
-model1 = LogisticRegression(solver='lbfgs').fit(X[["priors_count","age","female","race_black"]], y)
-print('p_percent_score:', p_percent_score(sensitive_column="race_black")(model1, X[["priors_count","age","female","race_black"]],y))
 
-model_comp = LogisticRegression(solver='lbfgs').fit(X[["decile_score","race_black"]], y)
-print('p_percent_score:', p_percent_score(sensitive_
-                                          ="race_black")(model_comp, X[["decile_score","race_black"]],y))
 
+
+# Test  Information Filter Logic
+
+#Set up dataframes
+compas_df = pd.read_pickle("pickle.p")
 from sklego.preprocessing import InformationFilter
-test_df = X[["priors_count","age","female","race_black"]]
+compas_df["race_black"] = compas_df["race"].apply(lambda x: 1 if x == "African-American" else 0)
+compas_df["race_white"] = compas_df["race"].apply(lambda x: 1 if x == "Caucasian" else 0)
+compas_df["felony"] = compas_df["c_charge_degree"].apply(lambda x: 0 if x == "M" else 1)
+compas_df["female"] = compas_df["sex"].apply(lambda x: 0 if x == "Male" else 1)
+mask = (compas_df["race_black"] == 1) | (compas_df["race_white"] == 1)
+compas_wb = compas_df[mask]
+info_df = compas_wb[["priors_count","age","race_black","two_year_recid"]]
 
-X_fair = InformationFilter(["race_black"]).fit_transform(test_df)
-X_fair = pd.DataFrame(X_fair,
-                      columns=[n for n in test_df.columns if n not in ['race_black']])
 
-# InfoFilter = InformationFilter(["race_black"])
-# test_df_scaled = InfoFilter.fit_transform(test_df)
+mod1 = LogisticRegression()
+mod2 = RandomForestClassifier()
+mod3 = GradientBoostingClassifier(learning_rate = .1)
+from sklego.linear_model import DemographicParityClassifier
+mod4 = DemographicParityClassifier(sensitive_cols=3, covariance_threshold=0)
+mod5 = KNeighborsClassifier(n_neighbors= 150)
+
+score_b_w(mod1)
+score_b_w(mod2)
+score_b_w(mod3)
+score_b_w(mod4)
+score_b_w(base)
+
+score_b_w_std(mod5)
+
+
+
+mod3 = GradientBoostingClassifier(learning_rate = .01, n_estimators = 50)
+score_b_w_std(mod3)
+score_b_w(mod3)
+
+
+
+mod1 = LogisticRegression(C=.5)
+score_b_w(mod1)
+score_b_w_std(mod1)
+
+preds_fair = score_b_w_std(mod3)
+preds_unfair = score_b_w(mod3)
+preds_actual = y_test
+
+X_test["fair"] = preds_fair
+X_test["unfair"] = preds_unfair
+X_test["actual"] = preds_actual
+
+X_test.to_csv("please_fucking_work.csv")
+
+# score_b_w_std(mod4)
+
+fair_scores = []
+unfair_scores = []
+for i in range(0,100):
+    fair_scores.append(score_b_w_std(mod2))
+    unfair_scores.append(score_b_w(mod2))
+
+fair = np.array(fair_scores)
+unfair = np.array(unfair_scores)
+
+mod2fairw = fair[:,0].mean(), fair[:,0].std()
+mod2fairb = fair[:,1].mean(), fair[:,1].std()
+
+mod2unfairw = unfair[:,0].mean(), unfair[:,0].std()
+mod2unfairb = unfair[:,1].mean(), unfair[:,1].std()
+
+score_b_w_std(mod5)
+
+def score_b_w_std(log_fair):
+    # Split out test set 
+    X, X_test, y, y_test = \
+    (train_test_split(info_df.drop("two_year_recid", axis = 1)
+                     ,info_df.two_year_recid
+                     ,test_size=0.2))
+    
+    # Standard Scale
+    Scaler = StandardScaler()
+    X_scale1 = Scaler.fit_transform(X)
+    X_test_scale1 = Scaler.transform(X_test)
+   
+    # Filter out racial bias
+    FairFilter = InformationFilter(len(X_scale1.T)-1)
+    X_scaled = FairFilter.fit_transform(X_scale1)
+    X_test_scaled = FairFilter.transform(X_test_scale1)
+    
+    # X_scaled = X
+    # X_test_scaled = X_test
+    
+    # log_fair = LogisticRegression()
+    log_fair.fit(X_scaled,y)
+    soft_pred = log_fair.predict_proba(X_test_scaled)[:,1]
+    hard_pred = log_fair.predict(X_test_scaled)
+    
+    # Calc metrics based for All, White, Black
+    # All
+    metrics.recall_score(y_test, hard_pred)
+    
+    # White
+    mask_white = X_test["race_black"] == 0
+    y_test_w = y_test[mask_white]
+    y_pred_w = hard_pred[mask_white]
+    p_percent_w = sum(y_pred_w)/len(y_pred_w)
+    # print(metrics.accuracy_score(y_test_w, y_pred_w))
+    # print(metrics.precision_score(y_test_w, y_pred_w))
+    print(f"White acc: {metrics.accuracy_score(y_test_w, y_pred_w)}") 
+    print(f"White precision: {metrics.precision_score(y_test_w, y_pred_w)}")    
+    print(f"White recall: {metrics.recall_score(y_test_w, y_pred_w)}")
+    print(f"White p_percent {p_percent_w}")
+    
+    # Black
+    y_test_b = y_test[~mask_white]
+    y_pred_b = hard_pred[~mask_white]
+    p_percent_b = sum(y_pred_b)/len(y_pred_b)
+    # print(metrics.accuracy_score(y_test, hard_pred))
+    # print(metrics.precision_score(y_test_b, y_pred_b))
+    print(f"Black acc {metrics.accuracy_score(y_test_b, y_pred_b)}")
+    print(f"Black prec {metrics.precision_score(y_test_b, y_pred_b)}")
+    print(f"Black recall {metrics.recall_score(y_test_b, y_pred_b)}")
+    print(f"Black p_percent {p_percent_b}")
+    
+    print(f"AUC: {metrics.roc_auc_score(y_test, soft_pred)}")
+    
+    return p_percent_w, p_percent_b
+
+def score_b_w(log_fair):
+    # Split out test set 
+    X, X_test, y, y_test = \
+    (train_test_split(info_df.drop("two_year_recid", axis = 1)
+                     ,info_df.two_year_recid
+                     ,test_size=0.2))
+    
+    # # Filter out racial bias
+    # FairFilter = InformationFilter(["race_black"])
+    # X_scaled = FairFilter.fit_transform(X)
+    # X_test_scaled = FairFilter.transform(X_test)
+    
+    
+    # Standard Scale
+    Scaler = StandardScaler()
+    X_scaled = Scaler.fit_transform(X)
+    X_test_scaled = Scaler.transform(X_test)
+
+    # X_scaled = X
+    # X_test_scaled = X_test
+    
+    # log_fair = LogisticRegression()
+    log_fair.fit(X_scaled,y)
+    soft_pred = log_fair.predict_proba(X_test_scaled)[:,1]
+    hard_pred = log_fair.predict(X_test_scaled)
+    
+    # Calc metrics based for All, White, Black
+    # All
+    metrics.recall_score(y_test, hard_pred)
+    
+    # White
+    mask_white = X_test["race_black"] == 0
+    y_test_w = y_test[mask_white]
+    y_pred_w = hard_pred[mask_white]
+    p_percent_w = sum(y_pred_w)/len(y_pred_w)
+    # print(metrics.accuracy_score(y_test_w, y_pred_w))
+    # print(metrics.precision_score(y_test_w, y_pred_w))
+    print(f"White acc: {metrics.accuracy_score(y_test_w, y_pred_w)}") 
+    print(f"White precision: {metrics.precision_score(y_test_w, y_pred_w)}")    
+    print(f"White recall: {metrics.recall_score(y_test_w, y_pred_w)}")
+    print(f"White p_percent {p_percent_w}")
+    
+    # Black
+    y_test_b = y_test[~mask_white]
+    y_pred_b = hard_pred[~mask_white]
+    p_percent_b = sum(y_pred_b)/len(y_pred_b)
+    # print(metrics.accuracy_score(y_test, hard_pred))
+    # print(metrics.precision_score(y_test_b, y_pred_b))
+    print(f"Black acc {metrics.accuracy_score(y_test_b, y_pred_b)}")
+    print(f"Black prec {metrics.precision_score(y_test_b, y_pred_b)}")
+    print(f"Black recall {metrics.recall_score(y_test_b, y_pred_b)}")
+    print(f"Black p_percent {p_percent_b}")
+    
+    return p_percent_w, p_percent_b
+
+
+
+
+
+
+
+
+fair_classifier = DemographicParityClassifier(sensitive_cols="race_black", covariance_threshold=0.1)
+fair_classifier.fit(X[["priors_count","age","female","race_black"]], y);
+preds = fair_classifier.predict(X[["priors_count","age","female","race_black"]])
+metrics.accuracy_score(y, preds)
+metrics.precision_score(y, preds)
+metrics.recall_score(y, preds)
+X["pred"] = preds
+X["actual"] = y
+X.to_csv("testestetst2.csv")
+
 
 # InformationFilter(["race_black"]).transform(test_df)
 
@@ -151,12 +336,7 @@ predictions_proba = model1.predict_proba(X_fair[["priors_count","age","female"]]
 test_df["predict"] = predictions
 test_df["predict_proba"] = predictions_proba[:,1]
 test_df["actual"] = y
-test_df["race_white"] = X["race_white"]
-metrics.accuracy_score(y, predictions)
-metrics.recall_score(y, predictions)
-metrics.precision_score(y, predictions)
-
-test_df.to_csv("explore_predict6.csv")
+test_df.to_csv("explore_predict4.csv")
 X_fair.to_csv("explore_predict5.csv")
 
 
@@ -210,9 +390,10 @@ plt.(show)
 average_mod = compas_df.groupby('two_year_recid').mean()
 compas_df.c_charge_desc.value_counts()
 
-compas_df.race.value_counts()
 
-def cross_val_race(model, X, y, rand = 122, name = 'model1'):
+
+
+def cross_val_race_info(model, X, y, rand = 122, name = 'model1'):
     
     # Prepare data for cross validation
     X, y = np.array(X), np.array(y)
@@ -222,14 +403,16 @@ def cross_val_race(model, X, y, rand = 122, name = 'model1'):
     cv_AUCs, cv_acc, cv_prec, cv_rec, cv_fb  = [], [], [], [], []
     cv_AUCs_w, cv_acc_w, cv_prec_w, cv_rec_w, cv_fb_w  = [], [], [], [], []
     cv_AUCs_b, cv_acc_b, cv_prec_b, cv_rec_b, cv_fb_b  = [], [], [], [], []
-    b_len = []
+
     
     for train_ind, val_ind in kf.split(X,y):
         X_train, y_train = X[train_ind], y[train_ind]
         X_val, y_val = X[val_ind], y[val_ind]
         
-        # Create Classifier Object
-        # model = classifier
+        # Feature scaling - Information Scaler to make columns orthogonal to race
+        scaler = InformationFilter(len(X_val.T)-1)
+        X_train = scaler.fit_transform(X_train) #scale & drop race columm
+        X_val = scaler.transform(X_val) #sclae & drop race columm
         
         # fit model and make predictions
         model.fit(X_train[:,:-1], y_train)
@@ -244,7 +427,7 @@ def cross_val_race(model, X, y, rand = 122, name = 'model1'):
         cv_fb.append(metrics.fbeta_score(y_val, hard_pred, beta = 1/2))
         
         # score white
-        mask_val_w = [X_val[:,-1] == "Caucasian"]
+        mask_val_w = [X_val[:,-1] == 0]
         X_val_w = X_val[mask_val_w]
         X_val_w = X_val_w[:,:-1] #drop race columm
         y_val_w = y_val[mask_val_w]
@@ -260,7 +443,7 @@ def cross_val_race(model, X, y, rand = 122, name = 'model1'):
         cv_fb_w.append(metrics.fbeta_score(y_val_w, hard_pred, beta = 1/2))               
         
         # score black
-        mask_val_b = [X_val[:,-1] == "African-American"]
+        mask_val_b = [X_val[:,-1] == 1]
         X_val_b = X_val[mask_val_b]
         X_val_b = X_val_b[:,:-1] #drop race columm
         y_val_b = y_val[mask_val_b]
@@ -275,8 +458,6 @@ def cross_val_race(model, X, y, rand = 122, name = 'model1'):
         cv_rec_b.append(metrics.recall_score(y_val_b, hard_pred))
         cv_fb_b.append(metrics.fbeta_score(y_val_b, hard_pred, beta = 1/2)) 
         
-        b_len.append(len(X_val_b))
-        
         # Feature scaling
         # Only used by KNN
         #scaler = StandardScaler()
@@ -288,8 +469,6 @@ def cross_val_race(model, X, y, rand = 122, name = 'model1'):
     model_prec = round(np.mean(cv_prec),3)
     model_rec = round(np.mean(cv_rec),3)
     model_fb = round(np.mean(cv_fb),3)
-    
-    print(f"{b_len}")
     
     print(f"{name} AUC: {model_AUCs}")
     print(f"{name} Acc: {model_acc}")
@@ -389,9 +568,11 @@ def cross_val_scores(model, X, y, rand = 122, name = 'model1'):
     print(f"{name} Prec: {model_prec}")
     print(f"{name} Rec: {model_rec}")
     print(f"{name} Fbeta: {model_fb}")
+ 
     
+
     
-def cross_val_scores_std(model, X, y, rand = 122, name = 'model1'):
+def cross_val_scores_info_scaler(model, X, y, rand = 122, name = 'model1'):
     
     # Prepare data for cross validation
     X, y = np.array(X), np.array(y)
@@ -408,11 +589,10 @@ def cross_val_scores_std(model, X, y, rand = 122, name = 'model1'):
         X_train, y_train = X[train_ind], y[train_ind]
         X_val, y_val = X[val_ind], y[val_ind]
         
-        # Feature scaling
-        # Only used by KNN / SVM
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_val_scaled = scaler.transform(X_val)
+        # Feature scaling - Information Scaler to make columns orthogonal to race
+        scaler = InformationFilter(len(X_val.T)-1)
+        X_train_scaled = scaler.fit_transform(X_train)[:,:-1] #scale & drop race columm
+        X_val_scaled = scaler.transform(X_val)[:,:-1] #sclae & drop race columm
         
         # fit model and make predictions
         model.fit(X_train_scaled, y_train)
@@ -426,9 +606,7 @@ def cross_val_scores_std(model, X, y, rand = 122, name = 'model1'):
         cv_rec.append(metrics.recall_score(y_val, hard_pred))
         cv_fb.append(metrics.fbeta_score(y_val, hard_pred, beta = 1/2))
         
-        
 
-        
     model_AUCs = round(np.mean(cv_AUCs),3)
     model_acc = round(np.mean(cv_acc),3)
     model_prec = round(np.mean(cv_prec),3)
@@ -441,6 +619,6 @@ def cross_val_scores_std(model, X, y, rand = 122, name = 'model1'):
     print(f"{name} Rec: {model_rec}")
     print(f"{name} Fbeta: {model_fb}")
     
-    
+
     
     

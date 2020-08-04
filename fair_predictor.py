@@ -45,17 +45,32 @@ column_list = ["names","auc_all", "acc_all", "prec_all", "rec_all", "fb_all", "p
     , "auc_black", "acc_black", "prec_black", "rec_black", "fb_black", "pr_black", "p_percent"]
 
 
-test_lists = fairness_cv(mod2,X,y,fairness=True,name = "fair")
-test_df = pd.DataFrame(np.array(test_lists).T, columns= column_list)
 
-column_num = [n for n in test_df.columns if n not in ['names']]
-for column in column_num:
-    test_df[column] = pd.to_numeric(test_df[column])
-            
+model_list = [mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8]
+model_names = 
 
-vert = pd.concat([test_df, test_df2], axis=0)
-summary = vert.groupby("names").mean()
-summary.transpose()
+mod1 = LogisticRegression(C=.001)
+mod2 = KNeighborsClassifier(n_neighbors = 20)
+mod3 = GradientBoostingClassifier(learning_rate = .001, max_depth = 6, n_estimators = 300)
+mod4 = RandomForestClassifier()
+mod5 = GaussianNB()
+
+
+out1 = fairness_cv(mod1,X,y,name = 'log_fair', fairness = True)
+out2 = fairness_cv(mod1,X,y,name = 'log_unfair', fairness = False)
+out3 = fairness_cv(mod2,X,y,name = 'KNN_fair', fairness = True)
+out4 = fairness_cv(mod2,X,y,name = 'KNN_unfair', fairness = False)
+out5 = fairness_cv(mod3,X,y,name = 'GB_fair', fairness = True)
+out6 = fairness_cv(mod3,X,y,name = 'GB_unfair', fairness = False)
+out7 = fairness_cv(mod4,X,y,name = 'RF_fair', fairness = True)
+out8 = fairness_cv(mod4,X,y,name = 'RF_unfair', fairness = False)
+out9 = fairness_cv(mod5,X,y,name = 'NB_fair', fairness = True)
+out10 = fairness_cv(mod5,X,y,name = 'NB_unfair', fairness = False)
+
+output_all = pd.concat([out1,out2,out3,out4,out5,out6,out7,out8,out9,out10],axis=0)
+
+summary = output_all.groupby("names").mean()
+summary_trans = summary.transpose()
 
 def fairness_cv(estimator,X,y,name="model_x",fairness = True):
     # Prepare data for cross validation
@@ -139,10 +154,21 @@ def fairness_cv(estimator,X,y,name="model_x",fairness = True):
         # Name model to use in DataFrame output
         names = [name]*5
         
-    return (names,auc_all, acc_all, prec_all, rec_all, fb_all, pr_all 
+    out_list = [names,auc_all, acc_all, prec_all, rec_all, fb_all, pr_all 
     , auc_white, acc_white, prec_white, rec_white, fb_white, pr_white
-    , auc_black, acc_black, prec_black, rec_black, fb_black, pr_black, p_percent)
+    , auc_black, acc_black, prec_black, rec_black, fb_black, pr_black, p_percent]
     
+    column_list = ["names","auc_all", "acc_all", "prec_all", "rec_all", "fb_all", "pr_all" 
+    , "auc_white", "acc_white", "prec_white", "rec_white", "fb_white", "pr_white"
+    , "auc_black", "acc_black", "prec_black", "rec_black", "fb_black", "pr_black", "p_percent"]
+
+    output_df = pd.DataFrame(np.array(out_list).T, columns= column_list)
+    
+    column_num = [n for n in output_df.columns if n not in ['names']]
+    for column in column_num:
+        output_df[column] = pd.to_numeric(output_df[column])
+    
+    return output_df
 
 def score_b_w_std(log_fair):
     # Split out test set 
