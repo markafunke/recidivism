@@ -9,7 +9,7 @@ The goal of this analysis is to replicate ProPublica's findings, and create a mo
 
 ## Conclusions 
 
-Leveraging sci-kit lego's [InformationFilter](https://scikit-lego.readthedocs.io/en/latest/fairness.html), I filtered information from the "Race" column away from all remaining features as a transformation step in preprocessing. This ultimately led to significantly more equitable predictions across White and Black defendants from a logistic regression model. However, there is a slight tradeoff in overall accuracy. Read about my process and detailed conclusions HERE (BLOG POST COMING SOON!)
+Leveraging sci-kit lego's [InformationFilter](https://scikit-lego.readthedocs.io/en/latest/fairness.html), I filtered information from the "Race" column away from all remaining features as a transformation step in preprocessing. This ultimately led to significantly more equitable predictions across White and Black defendants from a logistic regression model. However, there is a slight tradeoff in overall accuracy. Read about my process and detailed conclusions in my blog post [HERE](https://medium.com/@markafunke/de-biasing-an-unjust-criminal-predictive-model-9f2fff4852e3).
 
 ## Outline of Files
 
@@ -28,11 +28,3 @@ Leveraging sci-kit lego's [InformationFilter](https://scikit-lego.readthedocs.io
 - **classification_util.py**: Contains three functions used to score classification models in "modeling.py"
 - **modeling.py**: Fits and evaluates recidivism classification models both pre and post transforming the data for fairness. Compares predictions for White and Black defendants to evaluate racial bias, and exports the final predictions for use in a Tableau demonstration.
 - **hyperparameter_tuning.py**: This file was used in the iterative process of fitting the best classification model. It uses GridSearchCV to fit the optimal parameters for each model tested based on the F(1/3) metric. These parameters are ultimately used in the "modeling.py" file. Since the parameters are already reflected in the "modeling.py "file, if re-creating this analysis, there is no need to run this file.
-
-
-
-## Interactive Visual of Results
-
-For a demonstration of how the Information Filter successfully changes the distribution of predictions of my model, click HERE.
-
-(ONLINE SERVER HOSTING COMING SOON, see pdf of presentation for demonstration)
